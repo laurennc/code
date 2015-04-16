@@ -1,8 +1,9 @@
 import numpy as np
+import math
 import matplotlib.pyplot as plt
 import scipy.integrate as integrate
 from scipy import interpolate
-
+from astropy import units as u
 
 class DetectorModel(object):
 	"""DetectorModel receives an image array from the Instrument Model and then adds
@@ -11,14 +12,17 @@ class DetectorModel(object):
 
 	#The cubes are set up such that lambda is the first axis
 	#The wavelength range should be within the efficiency file for the interpolation to work
-	#For the example file, this is between 2000A and 2010A
-	def __init__(self, instrumentImage,wavelengths):
-		#super(ClassName, self).__init__()
+
+	def __init__(self, instrumentImage, lambda_center, lambda_range, lambda_res, wavelength_unit):
 		#Input from the instrument model
 		self.expectedValueImage = instrumentImage
 
 		#Need to know wavelengths of the observations. x,y less important
-		self.wavelengths = wavelengths
+		#self.wavelengths = wavelengths
+		self.wavelength_unit = wavelength_unit
+
+		lrange = math.ceil((2.*lambda_range)/lambda_res)/2.
+		self.wavelengths = np.arange(-1.*lrange,lrange+1,1)*lambda_res+lambda_center
 
 		#holders for cubes that will hold Parts of the Model 
 		self.efficiencyCube = []
@@ -35,9 +39,12 @@ class DetectorModel(object):
 	def build_efficiencyCube(self,filein):
 		######NEED TO MAKE SURE WAVELENGTH UNITS MATCH ##############
 		data = np.genfromtxt(filein)
+		lambda_unit = u.nanometer
 		#write now really specialized for 2 column file
 		eff_func = interpolate.interp1d(data[:,0],data[:,1],kind='cubic')
-		eff_vals = eff_func(self.wavelengths)
+		xs = (self.wavelengths*self.wavelength_unit).to(u.nanometer)
+		xs = xs.value
+		eff_vals = eff_func(xs)
 
 		self.efficiencyCube = np.zeros(self.expectedValueImage.shape)
 		for i in range(len(self.wavelengths)):
